@@ -5,8 +5,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git \
 
 WORKDIR /app
 
-COPY pyproject.toml .
-COPY api/ api/
+COPY vibecheck/pyproject.toml .
+COPY vibecheck/api/ api/
 
 RUN pip install --no-cache-dir .
 
