@@ -26,5 +26,5 @@ class AgentLog(Base):
     reasoning: Mapped[str] = mapped_column(Text, nullable=False)
     finding_id: Mapped[str | None] = mapped_column(String, nullable=True)
     timestamp: Mapped[object] = mapped_column(
-        DateTime, server_default=func.now()
+        DateTime(timezone=True), server_default=func.now()
     )

@@ -1,5 +1,4 @@
-from sqlalchemy import DateTime, String, Text, func
-from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy import DateTime, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from api.database import Base
@@ -39,9 +38,11 @@ class Assessment(Base):
     error_type: Mapped[str | None] = mapped_column(String, nullable=True)
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[object] = mapped_column(
-        DateTime, server_default=func.now()
+        DateTime(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[object] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    completed_at: Mapped[object | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[object | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

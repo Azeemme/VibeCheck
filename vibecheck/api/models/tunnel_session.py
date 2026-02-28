@@ -16,8 +16,8 @@ class TunnelSession(Base):
     target_port: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String, default="connected", nullable=False)
     created_at: Mapped[object] = mapped_column(
-        DateTime, server_default=func.now()
+        DateTime(timezone=True), server_default=func.now()
     )
     last_heartbeat: Mapped[object] = mapped_column(
-        DateTime, server_default=func.now()
+        DateTime(timezone=True), server_default=func.now()
     )

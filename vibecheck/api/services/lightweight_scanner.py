@@ -73,6 +73,10 @@ async def run_lightweight_scan(
 
             project_info = detect_project_info(project_files)
 
+            # #region agent log
+            _agent_log("H1", "lightweight_scanner.py:scanners_start", "Starting static scanners", {"files": len(project_files), "language": project_info.get("language")})
+            # #endregion
+
             # Dependency scanner findings
             for f in dependency_scanner.scan(project_files, project_info):
                 f.setdefault("agent", "dependency_scanner")
@@ -92,6 +96,10 @@ async def run_lightweight_scan(
             for f in config_scanner.scan(project_files, project_info):
                 f.setdefault("agent", "config_scanner")
                 all_findings.append(f)
+
+            # #region agent log
+            _agent_log("H1", "lightweight_scanner.py:static_done", "Static scanners done", {"static_findings": len(all_findings)})
+            # #endregion
 
             # Optional LLM-based contextual analysis (Gemini)
             # #region agent log
@@ -124,6 +132,10 @@ async def run_lightweight_scan(
                     f.setdefault("agent", "gemini_llm")
                     all_findings.append(f)
 
+            # #region agent log
+            _agent_log("H2", "lightweight_scanner.py:persist_start", "Persisting findings to DB", {"total_findings": len(all_findings)})
+            # #endregion
+
             finding_counts = {
                 "critical": 0, "high": 0, "medium": 0,
                 "low": 0, "info": 0, "total": 0,
@@ -147,19 +159,46 @@ async def run_lightweight_scan(
             assessment.finding_counts = finding_counts
             assessment.status = "complete"
             assessment.completed_at = datetime.now(timezone.utc)
+
+            # #region agent log
+            _agent_log("H2", "lightweight_scanner.py:commit_start", "About to commit complete status", {"finding_counts": finding_counts})
+            # #endregion
+
             await db.commit()
 
+            # #region agent log
+            _agent_log("H2", "lightweight_scanner.py:commit_done", "Commit succeeded", {})
+            # #endregion
+
         except VibeCheckError as e:
+            # #region agent log
+            _agent_log("H4", "lightweight_scanner.py:vibecheck_error", "VibeCheckError caught", {"code": e.code, "message": e.message[:200]})
+            # #endregion
+            await db.rollback()
             assessment.status = "failed"
             assessment.error_type = e.code
             assessment.error_message = e.message[:500]
-            await db.commit()
+            try:
+                await db.commit()
+            except Exception as commit_err:
+                # #region agent log
+                _agent_log("H4", "lightweight_scanner.py:error_commit_fail", "Error handler commit failed", {"error": str(commit_err)[:200]})
+                # #endregion
 
         except Exception as e:
+            # #region agent log
+            _agent_log("H4", "lightweight_scanner.py:general_error", "Unhandled exception caught", {"type": type(e).__name__, "message": str(e)[:300]})
+            # #endregion
+            await db.rollback()
             assessment.status = "failed"
             assessment.error_type = "SCAN_ERROR"
             assessment.error_message = str(e)[:500]
-            await db.commit()
+            try:
+                await db.commit()
+            except Exception as commit_err:
+                # #region agent log
+                _agent_log("H4", "lightweight_scanner.py:error_commit_fail2", "Error handler commit also failed", {"error": str(commit_err)[:200]})
+                # #endregion
 
         finally:
             if repo_url:
