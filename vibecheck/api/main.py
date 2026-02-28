@@ -1,4 +1,5 @@
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,10 +10,18 @@ from api.database import create_tables
 from api.routers import health, assessments, findings, logs, agents, tunnel
 from api.utils.errors import VibeCheckError
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await create_tables()
+    yield
+
+
 app = FastAPI(
     title="VibeCheck API",
     description="AI-powered security scanning for vibe-coded applications",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -68,6 +77,3 @@ app.include_router(agents.router)
 app.include_router(tunnel.router)
 
 
-@app.on_event("startup")
-async def startup():
-    await create_tables()

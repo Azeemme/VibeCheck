@@ -2,7 +2,6 @@ import json
 import os
 import shutil
 import subprocess
-import time
 from datetime import datetime, timezone
 
 from api.config import settings
@@ -17,33 +16,13 @@ from api.services.scanners import (
 )
 from api.utils.errors import VibeCheckError
 
-LOG_PATH = r"c:\Users\Azeem\Workshop\API Project\debug-3e1901.log"
-
-
-def _agent_log(hypothesis_id: str, location: str, message: str, data: dict):
-    try:
-        entry = {
-            "sessionId": "3e1901",
-            "id": f"log_{int(time.time() * 1000)}",
-            "timestamp": int(time.time() * 1000),
-            "location": location,
-            "message": message,
-            "data": data,
-            "runId": "initial",
-            "hypothesisId": hypothesis_id,
-        }
-        with open(LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
-    except Exception:
-        # Logging must never break the app
-        pass
-
 
 async def run_lightweight_scan(
     assessment_id: str,
     repo_url: str | None,
     files: list[dict] | None,
     db_factory,
+    context_limit: int = 50_000,
 ):
     """
     Main lightweight scan orchestrator.
@@ -73,68 +52,30 @@ async def run_lightweight_scan(
 
             project_info = detect_project_info(project_files)
 
-            # #region agent log
-            _agent_log("H1", "lightweight_scanner.py:scanners_start", "Starting static scanners", {"files": len(project_files), "language": project_info.get("language")})
-            # #endregion
-
-            # Dependency scanner findings
             for f in dependency_scanner.scan(project_files, project_info):
                 f.setdefault("agent", "dependency_scanner")
                 all_findings.append(f)
 
-            # Pattern scanner findings
             for f in pattern_scanner.scan(project_files):
                 f.setdefault("agent", "pattern_scanner")
                 all_findings.append(f)
 
-            # Secret scanner findings
             for f in secret_scanner.scan(project_files):
                 f.setdefault("agent", "secret_scanner")
                 all_findings.append(f)
 
-            # Config scanner findings
             for f in config_scanner.scan(project_files, project_info):
                 f.setdefault("agent", "config_scanner")
                 all_findings.append(f)
 
-            # #region agent log
-            _agent_log("H1", "lightweight_scanner.py:static_done", "Static scanners done", {"static_findings": len(all_findings)})
-            # #endregion
-
-            # Optional LLM-based contextual analysis (Gemini)
-            # #region agent log
-            _agent_log(
-                "A",
-                "lightweight_scanner.py:run_lightweight_scan",
-                "Checking whether to run Gemini scan",
-                {
-                    "has_gemini_key": bool(settings.GEMINI_API_KEY),
-                    "files_count": len(project_files),
-                },
-            )
-            # #endregion
-
             if settings.GEMINI_API_KEY:
                 claude_findings = await claude_scanner.scan(
-                    project_files, project_info
+                    project_files, project_info, max_chars=context_limit
                 )
-
-                # #region agent log
-                _agent_log(
-                    "B",
-                    "lightweight_scanner.py:run_lightweight_scan",
-                    "Gemini scan completed",
-                    {"llm_findings_count": len(claude_findings)},
-                )
-                # #endregion
 
                 for f in claude_findings:
                     f.setdefault("agent", "gemini_llm")
                     all_findings.append(f)
-
-            # #region agent log
-            _agent_log("H2", "lightweight_scanner.py:persist_start", "Persisting findings to DB", {"total_findings": len(all_findings)})
-            # #endregion
 
             finding_counts = {
                 "critical": 0, "high": 0, "medium": 0,
@@ -160,45 +101,27 @@ async def run_lightweight_scan(
             assessment.status = "complete"
             assessment.completed_at = datetime.now(timezone.utc)
 
-            # #region agent log
-            _agent_log("H2", "lightweight_scanner.py:commit_start", "About to commit complete status", {"finding_counts": finding_counts})
-            # #endregion
-
             await db.commit()
 
-            # #region agent log
-            _agent_log("H2", "lightweight_scanner.py:commit_done", "Commit succeeded", {})
-            # #endregion
-
         except VibeCheckError as e:
-            # #region agent log
-            _agent_log("H4", "lightweight_scanner.py:vibecheck_error", "VibeCheckError caught", {"code": e.code, "message": e.message[:200]})
-            # #endregion
             await db.rollback()
             assessment.status = "failed"
             assessment.error_type = e.code
             assessment.error_message = e.message[:500]
             try:
                 await db.commit()
-            except Exception as commit_err:
-                # #region agent log
-                _agent_log("H4", "lightweight_scanner.py:error_commit_fail", "Error handler commit failed", {"error": str(commit_err)[:200]})
-                # #endregion
+            except Exception:
+                pass
 
         except Exception as e:
-            # #region agent log
-            _agent_log("H4", "lightweight_scanner.py:general_error", "Unhandled exception caught", {"type": type(e).__name__, "message": str(e)[:300]})
-            # #endregion
             await db.rollback()
             assessment.status = "failed"
             assessment.error_type = "SCAN_ERROR"
             assessment.error_message = str(e)[:500]
             try:
                 await db.commit()
-            except Exception as commit_err:
-                # #region agent log
-                _agent_log("H4", "lightweight_scanner.py:error_commit_fail2", "Error handler commit also failed", {"error": str(commit_err)[:200]})
-                # #endregion
+            except Exception:
+                pass
 
         finally:
             if repo_url:

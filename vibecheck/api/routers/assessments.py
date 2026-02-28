@@ -52,6 +52,7 @@ async def create_assessment(
         tunnel_session_id=body.tunnel_session_id,
         agents=body.agents,
         depth=body.depth,
+        context_limit=body.context_limit,
         idempotency_key=body.idempotency_key,
     )
     db.add(assessment)
@@ -65,6 +66,7 @@ async def create_assessment(
             repo_url=body.repo_url,
             files=[f.model_dump() for f in body.files] if body.files else None,
             db_factory=async_sessionmaker_factory,
+            context_limit=body.context_limit,
         )
     else:
         background_tasks.add_task(
@@ -186,6 +188,7 @@ async def rerun_assessment(
             repo_url=assessment.repo_url,
             files=None,
             db_factory=async_sessionmaker_factory,
+            context_limit=assessment.context_limit,
         )
     else:
         background_tasks.add_task(

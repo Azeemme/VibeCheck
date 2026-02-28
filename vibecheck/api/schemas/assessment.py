@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from api.schemas.pagination import PaginationMeta
 
@@ -17,6 +17,7 @@ class CreateAssessmentRequest(BaseModel):
     files: list[FileUpload] | None = None
     target_url: str | None = None
     tunnel_session_id: str | None = None
+    context_limit: int = Field(default=50_000, ge=1_000, le=500_000)
     agents: list[str] = ["recon", "auth", "injection", "config"]
     depth: Literal["quick", "standard", "deep"] = "standard"
     idempotency_key: str | None = None
@@ -44,6 +45,12 @@ class CreateAssessmentRequest(BaseModel):
                 {
                     "mode": "lightweight",
                     "repo_url": "https://github.com/user/my-vibe-coded-app",
+                    "context_limit": 50000,
+                },
+                {
+                    "mode": "lightweight",
+                    "repo_url": "https://github.com/user/large-project",
+                    "context_limit": 200000,
                 },
                 {
                     "mode": "robust",
@@ -66,6 +73,7 @@ class AssessmentResponse(BaseModel):
                     "mode": "lightweight",
                     "status": "queued",
                     "repo_url": "https://github.com/user/my-vibe-coded-app",
+                    "context_limit": 50000,
                     "created_at": "2026-02-28T12:00:00Z",
                     "links": {
                         "self": "/v1/assessments/asm_a1b2c3d4e5f6",
@@ -85,6 +93,7 @@ class AssessmentResponse(BaseModel):
     tunnel_session_id: str | None = None
     agents: list[str] | None = None
     depth: str
+    context_limit: int = 50_000
     finding_counts: dict
     idempotency_key: str | None = None
     error_type: str | None = None

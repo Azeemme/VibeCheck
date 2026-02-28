@@ -274,6 +274,7 @@ Important fields on the `Assessment` resource:
 - `mode`: `"lightweight"` or `"robust"`.
 - `status`: `"queued" | "cloning" | "analyzing" | "scanning" | "complete" | "failed"`.
 - `repo_url` or `files` (for lightweight).
+- `context_limit`: max characters of source code sent to the LLM (default 50,000, max 500,000; lightweight mode only).
 - `tunnel_session_id`, `agents`, `depth` (for robust).
 - `finding_counts`: counts of findings per severity.
 - `error_type` and `error_message` when a scan fails.
@@ -428,8 +429,9 @@ Out of the box, the lightweight engine can detect:
   - Looks at `.gitignore`, Dockerfiles, Next.js config, `docker-compose`, `package.json`.
   - Emits `exposed_secrets`, `missing_gitignore`, `container_security`, `network_exposure`, `framework_config`, `supply_chain`.
 
-- `claude_scanner.scan(files, project_info)`  
-  - If `GEMINI_API_KEY` is set, sends a prioritized subset of files to a Gemini model.
+- `claude_scanner.scan(files, project_info, max_chars=50_000)`  
+  - If `GEMINI_API_KEY` is set, sends a prioritized subset of files (up to `max_chars` characters) to a Gemini model.
+  - `max_chars` is controlled by the `context_limit` parameter on the assessment request (default 50,000, max 500,000).
   - Asks for JSON‑formatted findings with severity/category/title/description/location/remediation.
   - Safely ignored if the call fails.
 
@@ -448,6 +450,18 @@ curl -X POST "http://localhost:8000/v1/assessments" \
   -d '{
     "mode": "lightweight",
     "repo_url": "https://github.com/user/my-vibe-coded-app"
+  }'
+```
+
+To send more code to the LLM for deeper analysis, set `context_limit` (default 50,000, max 500,000):
+
+```bash
+curl -X POST "http://localhost:8000/v1/assessments" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "lightweight",
+    "repo_url": "https://github.com/user/my-vibe-coded-app",
+    "context_limit": 200000
   }'
 ```
 

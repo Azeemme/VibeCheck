@@ -1,4 +1,4 @@
-﻿
+
 # VibeCheck API - Product Requirements Document
 
 ## Project Overview
@@ -114,6 +114,7 @@ class Assessment:
     tunnel_session_id: str | None  # Links to an active WS tunnel
     agents: list[str] | None
     depth: str                 # "quick" | "standard" | "deep"
+    context_limit: int          # Max chars sent to LLM (default 50000, max 500000; lightweight only)
     # Shared
     finding_counts: dict       # {critical, high, medium, low, info, total}
     idempotency_key: str | None
@@ -225,7 +226,8 @@ GET    /redoc                         ReDoc
 ```json
 {
   "mode": "lightweight",
-  "repo_url": "https://github.com/user/my-vibe-coded-app"
+  "repo_url": "https://github.com/user/my-vibe-coded-app",
+  "context_limit": 50000
 }
 ```
 
@@ -242,7 +244,8 @@ GET    /redoc                         ReDoc
       "path": "package.json",
       "content": "{\"dependencies\": {\"next\": \"^14.0.0\", \"pg\": \"^8.11.0\"}}"
     }
-  ]
+  ],
+  "context_limit": 100000
 }
 ```
 
@@ -552,6 +555,7 @@ For scanning the current project's code:
 2. POST to https://vibecheck-api.fly.dev/v1/assessments:
    - If it's a public GitHub repo: {"mode": "lightweight", "repo_url": "https://github.com/user/repo"}
    - If you have local files: {"mode": "lightweight", "files": [{"path": "relative/path.ts", "content": "file contents"}, ...]}
+   - Optional: set "context_limit" (default 50000, max 500000) to control how much code is sent to the LLM for deeper analysis
 3. Poll GET /v1/assessments/{id} until status is "complete"
 4. GET /v1/assessments/{id}/findings to retrieve results
 5. Present findings grouped by severity, offer to fix each one

@@ -78,7 +78,7 @@ Features
   - Regex‑based pattern scanning for SQLi, XSS, command injection, insecure deserialization, debug mode, and more.
   - Hardcoded secret detection using regexes and entropy heuristics.
   - Config analysis for `.gitignore`, Dockerfiles, Next.js config, `docker-compose`, `package.json` scripts.
-  - Optional AI‑powered contextual analysis with OpenAI.
+  - Optional AI‑powered contextual analysis with Gemini.
 - **Stateful assessments**:
   - `Assessment` tracks mode, status, errors, finding counts, and links.
   - `Finding` contains severity, category, location, evidence, and remediation text.
@@ -135,7 +135,7 @@ vibecheck/
 │   │       ├── pattern_scanner.py
 │   │       ├── secret_scanner.py
 │   │       ├── config_scanner.py
-│   │       └── claude_scanner.py   # OpenAI-based contextual analyzer
+│   │       └── claude_scanner.py   # Gemini-based contextual analyzer
 │   │
 │   └── utils/
 │       ├── id_generator.py
@@ -169,7 +169,7 @@ cd vibecheck
 python -m pip install -e "."
 ```
 
-This installs the API package and its dependencies (FastAPI, SQLAlchemy, aiosqlite, httpx, openai, etc.) into your current Python environment.
+This installs the API package and its dependencies (FastAPI, SQLAlchemy, aiosqlite, httpx, google-genai, etc.) into your current Python environment.
 
 To install the tunnel client (for robust mode), from `vibecheck/client`:
 
@@ -187,7 +187,8 @@ Configuration is managed via `pydantic-settings` in `api/config.py`. The followi
 | Variable         | Default                                   | Description                                  |
 |------------------|-------------------------------------------|----------------------------------------------|
 | `DATABASE_URL`   | `sqlite+aiosqlite:///./vibecheck.db`      | SQLAlchemy async database URL                |
-| `OPENAI_API_KEY` | `""`                                      | OpenAI API key (optional; for LLM analysis)  |
+| `GEMINI_API_KEY` | `""`                                      | Gemini API key (optional; for LLM analysis)  |
+| `GEMINI_MODEL`   | `gemini-2.5-flash`                        | Gemini model to use for LLM scanning         |
 | `CLONE_DIR`      | `/tmp/vibecheck-repos`                    | Directory to clone GitHub repos into         |
 | `DEBUG`          | `false`                                   | Enables SQLAlchemy engine echo logging       |
 
@@ -195,7 +196,7 @@ For local development, create a `.env` file next to `pyproject.toml`:
 
 ```env
 DATABASE_URL=sqlite+aiosqlite:///./vibecheck.db
-OPENAI_API_KEY=sk-openai-...optional...
+GEMINI_API_KEY=your_gemini_key_here
 CLONE_DIR=/tmp/vibecheck-repos
 DEBUG=true
 ```
@@ -274,6 +275,7 @@ Important fields on the `Assessment` resource:
 - `mode`: `"lightweight"` or `"robust"`.
 - `status`: `"queued" | "cloning" | "analyzing" | "scanning" | "complete" | "failed"`.
 - `repo_url` or `files` (for lightweight).
+- `context_limit`: max characters of source code sent to the LLM (default 50,000, max 500,000; lightweight mode only).
 - `tunnel_session_id`, `agents`, `depth` (for robust).
 - `finding_counts`: counts of findings per severity.
 - `error_type` and `error_message` when a scan fails.
@@ -429,7 +431,7 @@ Out of the box, the lightweight engine can detect:
   - Emits `exposed_secrets`, `missing_gitignore`, `container_security`, `network_exposure`, `framework_config`, `supply_chain`.
 
 - `claude_scanner.scan(files, project_info)`  
-  - If `OPENAI_API_KEY` is set, sends a prioritized subset of files to an OpenAI model.
+  - If `GEMINI_API_KEY` is set, sends a prioritized subset of files (up to `max_chars` characters) to a Gemini model.
   - Asks for JSON‑formatted findings with severity/category/title/description/location/remediation.
   - Safely ignored if the call fails.
 
@@ -448,6 +450,18 @@ curl -X POST "http://localhost:8000/v1/assessments" \
   -d '{
     "mode": "lightweight",
     "repo_url": "https://github.com/user/my-vibe-coded-app"
+  }'
+```
+
+To send more code to the LLM for deeper analysis, set `context_limit` (default 50,000, max 500,000):
+
+```bash
+curl -X POST "http://localhost:8000/v1/assessments" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "lightweight",
+    "repo_url": "https://github.com/user/my-vibe-coded-app",
+    "context_limit": 200000
   }'
 ```
 
@@ -565,7 +579,7 @@ Roadmap
 
 Potential extensions and follow‑ups:
 
-- Implement the **robust scanner** agent orchestration using an LLM (OpenAI).
+- Implement the **robust scanner** agent orchestration using an LLM (Gemini).
 - Store full **AgentLog** traces for robust assessments.
 - Add **examples/**:
   - Intentionally vulnerable demo apps in different frameworks.

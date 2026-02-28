@@ -1,4 +1,4 @@
-from sqlalchemy import DateTime, JSON, String, Text, func
+from sqlalchemy import DateTime, Integer, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from api.database import Base
@@ -20,6 +20,7 @@ class Assessment(Base):
     tunnel_session_id: Mapped[str | None] = mapped_column(String, nullable=True)
     agents: Mapped[list | None] = mapped_column(JSON, nullable=True)
     depth: Mapped[str] = mapped_column(String, default="standard", nullable=False)
+    context_limit: Mapped[int] = mapped_column(Integer, default=50_000, nullable=False)
     idempotency_key: Mapped[str | None] = mapped_column(
         String, nullable=True, unique=True, index=True
     )
